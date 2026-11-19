@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- По умолчанию доверяем только системным CA. Пользовательские сертификаты
+     (корневой ГОСТ-сертификат Минцифры с subca.gosuslugi.ru) принимаются
+     ТОЛЬКО для доменов GigaChat — остальной трафик защищён от MITM
+     через установленные пользователем CA. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config>
+        <domain includeSubdomains="true">api.giga.chat</domain>
+        <domain includeSubdomains="true">ngw.devices.sberbank.ru</domain>
+        <domain includeSubdomains="true">gigachat.devices.sberbank.ru</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
