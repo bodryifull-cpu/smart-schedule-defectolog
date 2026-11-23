@@ -73,8 +73,6 @@ export function defaultHolidays(schoolYearStart: string): Holiday[] {
     kind: 'holiday'
   })
   const holidays: Holiday[] = [
-    // 1 сентября — День знаний: дети в школе, но уроки не ведутся.
-    singleDay('День знаний (уроки не проводятся)', `${y}-09-01`),
     singleDay('День народного единства', `${y}-11-04`),
     singleDay('День защитника Отечества', `${y + 1}-02-23`),
     singleDay('Международный женский день', `${y + 1}-03-08`),

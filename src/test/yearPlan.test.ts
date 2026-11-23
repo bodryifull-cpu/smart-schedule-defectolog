@@ -61,7 +61,6 @@ describe('defaultHolidays', () => {
   it('праздничные дни РФ внутри учебного года (kind=holiday, startDate=endDate)', () => {
     const singles = HOLIDAYS_2024.filter((h) => h.kind === 'holiday')
     expect(singles.map((h) => [h.title, h.startDate])).toEqual([
-      ['День знаний (уроки не проводятся)', '2024-09-01'],
       ['День народного единства', '2024-11-04'],
       ['День защитника Отечества', '2025-02-23'],
       ['Международный женский день', '2025-03-08'],
@@ -222,7 +221,6 @@ describe('buildYearPlan: любой учебный год', () => {
       '2032-03-23'
     ])
     expect(holidays.filter((h) => h.kind === 'holiday').map((h) => h.startDate)).toEqual([
-      '2031-09-01',
       '2031-11-04',
       '2032-02-23',
       '2032-03-08',
@@ -391,16 +389,16 @@ describe('buildYearPlan: пин со slotId (два одинаковых пре�
   })
 })
 
-describe('buildYearPlan: День знаний', () => {
-  it('1 сентября исключено из плана (уроки не проводятся)', () => {
-    // Вс 01.09.2024 и Пн 01.09.2025 — с праздником по умолчанию занятий нет.
+describe('buildYearPlan: 1 сентября', () => {
+  it('1 сентября — обычный учебный день (День знаний не исключён)', () => {
+    // Вс 01.09.2024: слот Вс попадает на первый день года.
     const plan2024 = buildYearPlan([slot(1, 7)], [], HOLIDAYS_2024, '2024-09-01')
-    expect(plan2024.occurrences.map((o) => o.date)).not.toContain('2024-09-01')
-    expect(plan2024.occurrences[0].date).toBe('2024-09-08') // первое занятие — 8 сентября
+    expect(plan2024.occurrences.map((o) => o.date)).toContain('2024-09-01')
+    expect(plan2024.occurrences[0].date).toBe('2024-09-01')
 
     const plan2025 = buildYearPlan([slot(1, 1)], [], defaultHolidays('2025-09-01'), '2025-09-01')
-    expect(plan2025.occurrences.map((o) => o.date)).not.toContain('2025-09-01')
-    expect(plan2025.occurrences[0].date).toBe('2025-09-08') // первый урок недели — 8 сентября
+    expect(plan2025.occurrences.map((o) => o.date)).toContain('2025-09-01')
+    expect(plan2025.occurrences[0].date).toBe('2025-09-01')
   })
 })
 
