@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileSpreadsheet, FileText, Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { FileSpreadsheet, FileText, ListOrdered, Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { DEFAULT_GIGACHAT_SETTINGS } from '@/lib/gigachatService'
 import { defaultHolidays } from '@/lib/yearPlan'
 import {
@@ -46,11 +46,16 @@ interface SettingsViewProps {
   onScheduleFile: (file: File) => void
   onKtpFile: (file: File) => void
   onResetRequest: () => void
+  /** Сброс закреплений тем: повторное размещение тем КТП по порядку с первого занятия. */
+  onRedistributeTopics: () => void
   onSave: (schoolYearStart: string, holidays: Holiday[], dayOverrides: DayOverride[]) => void
 }
 
 const MIN_YEAR = 2000
 const MAX_YEAR = 2100
+
+/** Варианты учебного года для выпадашки: «2026-2027» и т.д. */
+const YEAR_OPTIONS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i)
 
 /** Представление «Настройки»: вкладки «Учебный год», «GigaChat», «Файлы и данные». */
 export function SettingsView({
@@ -64,10 +69,11 @@ export function SettingsView({
   onScheduleFile,
   onKtpFile,
   onResetRequest,
+  onRedistributeTopics,
   onSave
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsTab>('year')
-  const [yearInput, setYearInput] = useState(schoolYearStart.slice(0, 4))
+  const [year, setYear] = useState(schoolYearStart.slice(0, 4))
   const [rows, setRows] = useState<Holiday[]>(holidays)
   const [overrideRows, setOverrideRows] = useState<DayOverride[]>(dayOverrides)
   const [giga, setGiga] = useState<GigaChatSettings>({ ...DEFAULT_GIGACHAT_SETTINGS, ...gigaSettings })
@@ -106,17 +112,13 @@ export function SettingsView({
     }
   }
 
-  const yearNum = Number(yearInput)
-  const yearValid =
-    /^\d{4}$/.test(yearInput.trim()) && yearNum >= MIN_YEAR && yearNum <= MAX_YEAR
-  const yearStart = `${yearInput.trim()}-09-01`
+  const yearStart = `${year}-09-01`
 
   function updateRow(index: number, patch: Partial<Holiday>) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
   }
 
   const valid =
-    yearValid &&
     rows.every(
       (r) =>
         r.title.trim() &&
@@ -201,6 +203,20 @@ export function SettingsView({
                 onClick={() => ktpInputRef.current?.click()}
               >
                 <FileSpreadsheet /> Загрузить КТП (.xls)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!scheduleUploaded}
+                title={
+                  scheduleUploaded
+                    ? 'Заново разместить темы КТП по порядку с первого занятия'
+                    : 'Сначала загрузите расписание'
+                }
+                onClick={onRedistributeTopics}
+              >
+                <ListOrdered /> Перераспределить темы
               </Button>
               <Button type="button" variant="destructive" size="sm" onClick={onResetRequest}>
                 <Trash2 /> Сбросить всё
@@ -317,25 +333,18 @@ export function SettingsView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Input
-                type="number"
-                min={MIN_YEAR}
-                max={MAX_YEAR}
-                className="w-32"
-                value={yearInput}
-                onChange={(e) => setYearInput(e.target.value)}
-              />
-              {yearValid && (
-                <span className="text-sm text-muted-foreground">
-                  {yearNum}/{String(yearNum + 1).slice(2)} (01.09.{yearNum} — 31.05.{yearNum + 1})
-                </span>
-              )}
-              {!yearValid && yearInput.trim() !== '' && (
-                <span className="text-sm text-destructive">
-                  Год от {MIN_YEAR} до {MAX_YEAR}
-                </span>
-              )}
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Учебный год</label>
+              <Select value={year} onValueChange={setYear}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {YEAR_OPTIONS.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{`${y}-${y + 1}`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -346,7 +355,6 @@ export function SettingsView({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!yearValid}
                     onClick={() => setRows(defaultHolidays(yearStart))}
                   >
                     <RotateCcw /> По умолчанию
@@ -355,7 +363,6 @@ export function SettingsView({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!yearValid}
                     onClick={() =>
                       setRows((prev) => [
                         ...prev,
@@ -441,7 +448,6 @@ export function SettingsView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!yearValid}
                   onClick={() =>
                     setOverrideRows((prev) => [
                       ...prev,

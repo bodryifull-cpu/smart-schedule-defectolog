@@ -83,25 +83,6 @@ export default function App() {
     })()
   }, [schoolYearStart])
 
-  // День знаний (1 сентября, уроки не проводятся) — добавляем в базы,
-  // где праздники были посеяны до появления этого правила.
-  useEffect(() => {
-    if (schoolYearStart === undefined) return
-    void (async () => {
-      const sep1 = schoolYearStart // всегда 'YYYY-09-01'
-      const existing = await db.holidays.toArray()
-      const covered = existing.some((h) => h.startDate <= sep1 && sep1 <= h.endDate)
-      if (!covered) {
-        await db.holidays.add({
-          title: 'День знаний (уроки не проводятся)',
-          startDate: sep1,
-          endDate: sep1,
-          kind: 'holiday'
-        })
-      }
-    })()
-  }, [schoolYearStart])
-
   // Одноразовая миграция: у сгенерированных тем старой версии план урока хранился
   // в поле homework (Д/з). Переносим его в lessonPlan, Д/з очищаем.
   useEffect(() => {
@@ -475,9 +456,10 @@ export default function App() {
         setStatus({ kind: 'error', text: 'В таблице расписания не найдено ни одного занятия' })
         return
       }
-      await db.transaction('rw', db.slots, db.meta, db.moves, async () => {
+      await db.transaction('rw', db.slots, db.meta, db.moves, db.pins, async () => {
         await db.slots.clear() // старое расписание удаляем
         await db.moves.clear() // переносы привязаны к старым слотам — тоже удаляем
+        await db.pins.clear() // закрепления тем ссылаются на старые слоты — тоже удаляем
         await db.slots.bulkAdd(parsed)
         await setMeta('scheduleUploaded', true)
       })
@@ -589,22 +571,33 @@ export default function App() {
     newHolidays: Holiday[],
     newOverrides: DayOverride[]
   ) {
-    await db.transaction('rw', db.meta, db.holidays, db.dayOverrides, async () => {
-      await setMeta('schoolYearStart', newYearStart)
-      await db.holidays.clear()
-      await db.holidays.bulkAdd(
-        newHolidays.map(({ title, startDate, endDate, kind }) => ({
-          title,
-          startDate,
-          endDate,
-          kind
-        }))
-      )
-      await db.dayOverrides.clear()
-      await db.dayOverrides.bulkAdd(
-        newOverrides.map(({ date, asDayOfWeek }) => ({ date, asDayOfWeek }))
-      )
-    })
+    // Смена учебного года обесценивает закрепления тем и переносы —
+    // они ссылаются на даты прошлого года.
+    const yearChanged = newYearStart !== schoolYearStart
+    await db.transaction(
+      'rw',
+      [db.meta, db.holidays, db.dayOverrides, db.pins, db.moves],
+      async () => {
+        await setMeta('schoolYearStart', newYearStart)
+        if (yearChanged) {
+          await db.pins.clear()
+          await db.moves.clear()
+        }
+        await db.holidays.clear()
+        await db.holidays.bulkAdd(
+          newHolidays.map(({ title, startDate, endDate, kind }) => ({
+            title,
+            startDate,
+            endDate,
+            kind
+          }))
+        )
+        await db.dayOverrides.clear()
+        await db.dayOverrides.bulkAdd(
+          newOverrides.map(({ date, asDayOfWeek }) => ({ date, asDayOfWeek }))
+        )
+      }
+    )
     setStatus({ kind: 'success', text: 'Настройки учебного года сохранены' })
   }
 
@@ -817,6 +810,20 @@ export default function App() {
     setStatus({ kind: 'info', text: 'Все данные удалены. Загрузите расписание заново.' })
   }
 
+  /** Сброс закреплений тем: темы КТП заново размещаются по порядку с первого занятия. */
+  async function handleRedistributeTopics() {
+    if (
+      !window.confirm(
+        'Темы КТП будут заново размещены по порядку, начиная с первого занятия учебного года. ' +
+          'Закрепления тем за датами (в том числе сделанные вручную) будут удалены. Продолжить?'
+      )
+    ) {
+      return
+    }
+    await db.pins.clear()
+    setStatus({ kind: 'success', text: 'Темы перераспределены по порядку с первого занятия' })
+  }
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background">
@@ -1026,6 +1033,7 @@ export default function App() {
             onScheduleFile={(f) => void handleScheduleFile(f)}
             onKtpFile={(f) => void handleKtpFile(f)}
             onResetRequest={() => setResetOpen(true)}
+            onRedistributeTopics={() => void handleRedistributeTopics()}
             onSave={(y, h, o) => void handleYearSettingsSave(y, h, o)}
           />
         )}
